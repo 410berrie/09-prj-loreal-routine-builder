@@ -289,7 +289,9 @@ function renderProducts() {
       return;
     }
 
-    setEmptyProductsState(`No products found matching \"${productSearchTerm}\".`);
+    setEmptyProductsState(
+      `No products found matching \"${productSearchTerm}\".`,
+    );
     return;
   }
 
