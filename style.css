@@ -96,9 +96,13 @@ input {
 }
 
 .search-section {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
   margin: 24px 0 16px;
 }
 
+.search-section input,
 .search-section select {
   width: 100%;
   padding: 16px 18px;
@@ -113,6 +117,12 @@ input {
     transform 0.2s ease;
 }
 
+.search-section input::placeholder {
+  color: rgba(58, 50, 48, 0.58);
+}
+
+.search-section input:hover,
+.search-section input:focus,
 .search-section select:hover,
 .search-section select:focus {
   border-color: rgba(143, 21, 55, 0.45);
@@ -227,6 +237,32 @@ input {
   color: var(--ink-soft);
   line-height: 1.55;
   font-size: 0.95rem;
+}
+
+.product-citations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.product-citation-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(23, 21, 21, 0.14);
+  background: rgba(255, 255, 255, 0.84);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  text-decoration: none;
+}
+
+.product-citation-link:hover,
+.product-citation-link:focus-visible {
+  border-color: rgba(143, 21, 55, 0.45);
+  color: var(--accent);
+  outline: none;
 }
 
 .product-description {
@@ -417,8 +453,11 @@ input {
   padding: 14px 16px;
   border-radius: 20px;
   line-height: 1.65;
-  white-space: pre-wrap;
   word-break: break-word;
+}
+
+.chat-message-text {
+  white-space: pre-wrap;
 }
 
 .chat-message--assistant {
@@ -443,6 +482,46 @@ input {
   color: var(--ink-soft);
   background: rgba(200, 163, 106, 0.16);
   border: 1px solid rgba(200, 163, 106, 0.24);
+}
+
+.chat-citations {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(23, 21, 21, 0.16);
+}
+
+.chat-citations-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.chat-citations-list {
+  margin-top: 6px;
+  padding-inline-start: 16px;
+  display: grid;
+  gap: 4px;
+}
+
+.chat-citation-link {
+  color: var(--accent);
+  font-size: 0.86rem;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.chat-citation-link:hover,
+.chat-citation-link:focus-visible {
+  color: #6f102b;
+  outline: none;
+}
+
+.chat-message--user .chat-citations-title,
+.chat-message--user .chat-citation-link {
+  color: #fff;
 }
 
 .chat-form {
@@ -537,6 +616,29 @@ input {
   outline: none;
 }
 
+html[dir="rtl"] body {
+  direction: rtl;
+}
+
+html[dir="rtl"] .product-card,
+html[dir="rtl"] .selected-product-card,
+html[dir="rtl"] .chat-message {
+  text-align: right;
+}
+
+html[dir="rtl"] .chat-message--assistant,
+html[dir="rtl"] .chat-message--status {
+  align-self: flex-end;
+}
+
+html[dir="rtl"] .chat-message--user {
+  align-self: flex-start;
+}
+
+html[dir="rtl"] .site-footer nav {
+  flex-direction: row-reverse;
+}
+
 @media (max-width: 760px) {
   .page-wrapper {
     padding: 18px;
@@ -553,5 +655,9 @@ input {
 
   .chat-message {
     max-width: 100%;
+  }
+
+  .search-section {
+    grid-template-columns: 1fr;
   }
 }

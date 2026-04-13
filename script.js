@@ -1,5 +1,6 @@
 /* Get references to DOM elements */
 const categoryFilter = document.getElementById("categoryFilter");
+const productSearchInput = document.getElementById("productSearch");
 const productsContainer = document.getElementById("productsContainer");
 const selectedProductsList = document.getElementById("selectedProductsList");
 const generateRoutineButton = document.getElementById("generateRoutine");
@@ -25,11 +26,12 @@ let selectedProducts = [];
 let conversationHistory = [];
 let generatedRoutine = "";
 let currentCategory = "";
+let productSearchTerm = "";
 
 /* Show initial placeholders */
 productsContainer.innerHTML = `
   <div class="placeholder-message">
-    Choose a category to browse products, then click a card to add it to your routine.
+    Choose a category or search by keyword to browse products, then click a card to add it to your routine.
   </div>
 `;
 
@@ -112,12 +114,144 @@ function formatCategoryLabel(category) {
     .join(" ");
 }
 
+function normalizeText(value) {
+  return value.toLowerCase().trim();
+}
+
+function getDefaultDirection() {
+  const rtlLanguages = ["ar", "he", "fa", "ur"];
+  const browserLanguage = (navigator.language || "en").toLowerCase();
+
+  return rtlLanguages.some((languageCode) =>
+    browserLanguage.startsWith(languageCode),
+  )
+    ? "rtl"
+    : "ltr";
+}
+
+function applyPageDirection(direction) {
+  const safeDirection = direction === "rtl" ? "rtl" : "ltr";
+  document.documentElement.setAttribute("dir", safeDirection);
+}
+
+function getProductSearchLinks(product) {
+  const encodedQuery = encodeURIComponent(`${product.brand} ${product.name}`);
+
+  return {
+    webSearch: `https://www.google.com/search?q=${encodedQuery}`,
+    reviews: `https://www.bing.com/search?q=${encodedQuery}%20review`,
+  };
+}
+
+function getProductCitationsMarkup(product) {
+  const links = getProductSearchLinks(product);
+
+  return `
+    <div class="product-citations" aria-label="Web citations for ${product.name}">
+      <a
+        class="product-citation-link"
+        href="${links.webSearch}"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Source: Google Search
+      </a>
+      <a
+        class="product-citation-link"
+        href="${links.reviews}"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Source: Bing Reviews Search
+      </a>
+    </div>
+  `;
+}
+
+function getChatResponseCitations() {
+  const maxCitations = 6;
+  const citations = [];
+  const seenUrls = new Set();
+
+  selectedProducts.forEach((product) => {
+    const links = getProductSearchLinks(product);
+
+    const productLinks = [
+      {
+        label: `${product.brand} ${product.name} - Google Search`,
+        url: links.webSearch,
+      },
+      {
+        label: `${product.brand} ${product.name} - Bing Reviews`,
+        url: links.reviews,
+      },
+    ];
+
+    productLinks.forEach((link) => {
+      if (citations.length >= maxCitations || seenUrls.has(link.url)) {
+        return;
+      }
+
+      seenUrls.add(link.url);
+      citations.push(link);
+    });
+  });
+
+  return citations;
+}
+
+function createChatCitationsElement(citations) {
+  const citationsContainer = document.createElement("div");
+  citationsContainer.className = "chat-citations";
+
+  const heading = document.createElement("p");
+  heading.className = "chat-citations-title";
+  heading.textContent = "Sources";
+  citationsContainer.appendChild(heading);
+
+  const list = document.createElement("ul");
+  list.className = "chat-citations-list";
+
+  citations.forEach((citation) => {
+    const listItem = document.createElement("li");
+    const link = document.createElement("a");
+    link.className = "chat-citation-link";
+    link.href = citation.url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = citation.label;
+
+    listItem.appendChild(link);
+    list.appendChild(listItem);
+  });
+
+  citationsContainer.appendChild(list);
+  return citationsContainer;
+}
+
+function getVisibleProducts() {
+  const normalizedSearchTerm = normalizeText(productSearchTerm);
+  const categoryFilteredProducts = currentCategory
+    ? allProducts.filter((product) => product.category === currentCategory)
+    : allProducts;
+
+  if (!normalizedSearchTerm) {
+    return categoryFilteredProducts;
+  }
+
+  return categoryFilteredProducts.filter((product) => {
+    const searchableText = `${product.name} ${product.brand} ${product.category} ${product.description}`;
+    return normalizeText(searchableText).includes(normalizedSearchTerm);
+  });
+}
+
 function getSelectedProductPayload() {
   return selectedProducts.map((product) => ({
     name: product.name,
     brand: product.brand,
     category: product.category,
     description: product.description,
+    citations: getProductSearchLinks(product),
   }));
 }
 
@@ -130,19 +264,32 @@ function setEmptyProductsState(message) {
 }
 
 function renderProducts() {
-  const visibleProducts = currentCategory
-    ? allProducts.filter((product) => product.category === currentCategory)
-    : [];
+  const visibleProducts = getVisibleProducts();
+  const hasSearchTerm = Boolean(normalizeText(productSearchTerm));
 
-  if (!currentCategory) {
+  if (!currentCategory && !hasSearchTerm) {
     setEmptyProductsState(
-      "Choose a category to browse products, then click a card to add it to your routine.",
+      "Choose a category or search by keyword to browse products, then click a card to add it to your routine.",
     );
     return;
   }
 
   if (!visibleProducts.length) {
-    setEmptyProductsState("No products found for this category.");
+    if (currentCategory && hasSearchTerm) {
+      setEmptyProductsState(
+        `No products found in ${formatCategoryLabel(
+          currentCategory,
+        )} matching \"${productSearchTerm}\".`,
+      );
+      return;
+    }
+
+    if (currentCategory) {
+      setEmptyProductsState("No products found for this category.");
+      return;
+    }
+
+    setEmptyProductsState(`No products found matching \"${productSearchTerm}\".`);
     return;
   }
 
@@ -153,10 +300,11 @@ function renderProducts() {
       );
 
       return `
-        <button
-          type="button"
+        <article
           class="product-card ${isSelected ? "is-selected" : ""}"
           data-product-id="${product.id}"
+          role="button"
+          tabindex="0"
           aria-pressed="${isSelected}"
           aria-label="${isSelected ? "Remove" : "Select"} ${product.name} by ${product.brand}. ${product.description}"
         >
@@ -170,8 +318,9 @@ function renderProducts() {
             </div>
             <h3>${product.name}</h3>
             <p class="product-description">${product.description}</p>
+            ${getProductCitationsMarkup(product)}
           </div>
-        </button>
+        </article>
       `;
     })
     .join("");
@@ -215,6 +364,7 @@ function renderSelectedProducts() {
                 </div>
                 <h3>${product.name}</h3>
                 <p class="selected-product-description">${product.description}</p>
+                ${getProductCitationsMarkup(product)}
               </div>
               <button
                 type="button"
@@ -246,7 +396,21 @@ function renderChatWindow(statusMessage = "") {
   conversationHistory.forEach((message) => {
     const messageBubble = document.createElement("div");
     messageBubble.className = `chat-message chat-message--${message.role}`;
-    messageBubble.textContent = message.content;
+
+    const messageText = document.createElement("p");
+    messageText.className = "chat-message-text";
+    messageText.textContent = message.content;
+    messageBubble.appendChild(messageText);
+
+    if (
+      message.role === "assistant" &&
+      Array.isArray(message.citations) &&
+      message.citations.length
+    ) {
+      const citationsElement = createChatCitationsElement(message.citations);
+      messageBubble.appendChild(citationsElement);
+    }
+
     chatWindow.appendChild(messageBubble);
   });
 
@@ -348,12 +512,31 @@ function buildWorkerMessages(historySnapshot, userMessage) {
 }
 
 productsContainer.addEventListener("click", (event) => {
+  if (event.target.closest(".product-citation-link")) {
+    return;
+  }
+
   const productCard = event.target.closest("[data-product-id]");
 
   if (!productCard) {
     return;
   }
 
+  toggleProductSelection(Number(productCard.dataset.productId));
+});
+
+productsContainer.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" && event.key !== " ") {
+    return;
+  }
+
+  const productCard = event.target.closest("[data-product-id]");
+
+  if (!productCard) {
+    return;
+  }
+
+  event.preventDefault();
   toggleProductSelection(Number(productCard.dataset.productId));
 });
 
@@ -374,6 +557,11 @@ selectedProductsList.addEventListener("click", (event) => {
 
 categoryFilter.addEventListener("change", (event) => {
   currentCategory = event.target.value;
+  renderProducts();
+});
+
+productSearchInput.addEventListener("input", (event) => {
+  productSearchTerm = event.target.value;
   renderProducts();
 });
 
@@ -403,6 +591,7 @@ generateRoutineButton.addEventListener("click", async () => {
       {
         role: "assistant",
         content: assistantReply,
+        citations: getChatResponseCitations(),
       },
     ];
     saveConversationHistory();
@@ -459,6 +648,7 @@ chatForm.addEventListener("submit", async (event) => {
       {
         role: "assistant",
         content: assistantReply,
+        citations: getChatResponseCitations(),
       },
     ];
     saveConversationHistory();
@@ -479,6 +669,8 @@ chatForm.addEventListener("submit", async (event) => {
 });
 
 async function initializeApp() {
+  applyPageDirection(getDefaultDirection());
+
   allProducts = await loadProducts();
   loadSavedSelection();
   loadSavedConversation();
